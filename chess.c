@@ -5,18 +5,14 @@
 #include "SDL.h"
 #include "png.h"
 
-#define IMAGE_PATH "assets/pieces.png"
-#define IMAGE_WIDTH 1024
-#define IMAGE_HEIGHT 341
-#define WINDOW_START_SIZE 400
-#define COLOR(renderer, r, b, g, a) \
-	sdl_check(SDL_SetRenderDrawColor(renderer, r, b, g, a))
+#include "pieces.h"
 
 struct Window {
 	int tile_size;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	SDL_Texture *image_texture;
+	struct Piece *board;
 };
 
 static inline int sdl_check(int code);
@@ -26,8 +22,22 @@ static struct Window init();
 static inline void handle_resize(struct Window *window, SDL_Event *event);
 static inline int handle_event(struct Window *window, SDL_Event *event);
 static inline void clear(struct Window *window);
+static inline SDL_Rect create_rect(int x, int y, int w, int h);
+static inline void render_piece(struct Window *window, SDL_Rect src, SDL_Rect dest);
+static inline void render_pieces(struct Window *window);
 static inline void draw_board(struct Window *window);
 static void run(struct Window *window);
+
+#define IMAGE_PATH "assets/pieces.png"
+#define IMAGE_WIDTH 768
+#define IMAGE_HEIGHT 256
+#define WINDOW_START_SIZE 400
+#define COLOR(renderer, r, b, g, a) \
+	sdl_check(SDL_SetRenderDrawColor(renderer, r, b, g, a))
+#define RECT(x, y, w, h) \
+	create_rect(x, y, w, h)
+#define PIECE_RECT(x, y) \
+	RECT(x,y,PIECE_WIDTH, PIECE_HEIGHT)
 
 int
 sdl_check(int code)
@@ -54,11 +64,6 @@ sdl_ptr_check(void *ptr)
 void
 init_image(struct Window *window)
 {
-	// FILE *file = fopen(IMAGE_PATH, "rb");
-	// assert(file);
-	// uint8_t header[8];
-	// fread(header, sizeof(uint8_t), sizeof(header), file);
-	// assert(png_sig_cmp(header, 0, sizeof(header)) != 0);
 	png_image image;
 	memset(&image, 0, sizeof(image));
 
@@ -79,23 +84,25 @@ init_image(struct Window *window)
 		sdl_ptr_check(
 			SDL_CreateRGBSurfaceFrom(
 				image_pixels,
-				 (int) image.width,
-				 (int) image.height,
-				 32,
-				 (int) image.width * 4,
-				 0x000000FF,
-				 0x0000FF00,
-				 0x00FF0000,
-				 0xFF000000));
+				(int) image.width,
+				(int) image.height,
+				32,
+				(int) image.width * 4,
+				0x000000FF,
+				0x0000FF00,
+				0x00FF0000,
+				0xFF000000));
 
 	window->image_texture = sdl_ptr_check(
-		SDL_CreateTextureFromSurface(window->renderer,
-			                     image_surface));
+		SDL_CreateTextureFromSurface(
+			window->renderer,
+			image_surface));
+
 	SDL_FreeSurface(image_surface);
 }
 
 struct Window
-init()
+init(struct Piece *board)
 {
 	sdl_check(SDL_Init(SDL_INIT_VIDEO));
 
@@ -122,9 +129,11 @@ init()
 		),
 		.image_texture = NULL,
 		.tile_size = WINDOW_START_SIZE / 4,
+		.board = board,
 	};
 
 	init_image(&w);
+	init_pieces(board);
 
 	return w;
 }
@@ -176,6 +185,50 @@ clear(struct Window *window)
 	sdl_check(SDL_RenderClear(window->renderer));
 }
 
+SDL_Rect
+create_rect(int x, int y, int w, int h)
+{
+	SDL_Rect rect = {
+		.x = x,
+		.y = y,
+		.w = w,
+		.h = h
+	};
+
+	return rect;
+}
+
+void
+render_piece(struct Window *window, SDL_Rect src, SDL_Rect dest)
+{
+
+	SDL_RenderCopy(
+		window->renderer,
+		window->image_texture,
+		&src,
+		&dest);
+}
+
+void
+render_pieces(struct Window *window)
+{
+	for (int i = 0; i < 64; i++) {
+		if (window->board[i].name != NONE) render_piece(
+			window,
+			PIECE_RECT(
+				window->board[i].name,
+				window->board[i].color
+			),
+			RECT(
+				window->tile_size * window->board[i].x,
+				window->tile_size * window->board[i].y,
+				window->tile_size,
+				window->tile_size
+			)
+		);
+	}
+}
+
 void
 draw_board(struct Window *window)
 {
@@ -203,15 +256,6 @@ draw_board(struct Window *window)
 			sdl_check(SDL_RenderFillRect(window->renderer, &r));
 		}
 	}
-
-	SDL_Rect rect = {
-		.x = 0,
-		.y = 0,
-		.w = IMAGE_WIDTH,
-		.h = IMAGE_HEIGHT
-	};
-
-	SDL_RenderCopy(window->renderer, window->image_texture, &rect, &rect);
 }
 
 void
@@ -225,6 +269,7 @@ run(struct Window *window)
 
 		clear(window);
 		draw_board(window);
+		render_pieces(window);
 		SDL_RenderPresent(window->renderer);
 	}
 }
@@ -232,7 +277,8 @@ run(struct Window *window)
 int
 main()
 {
-	struct Window window = init();
+	struct Piece board[8 * 8];
+	struct Window window = init(board);
 
 	run(&window);
 
