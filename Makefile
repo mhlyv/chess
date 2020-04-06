@@ -1,10 +1,10 @@
 NAME = chess
 
-PKGS = sdl2
+PKGS = sdl2 libpng
 LIBS = $(shell pkg-config --libs $(PKGS)) -lm
 CFLAGS = -Wall -Wextra -pedantic $(shell pkg-config --cflags $(PKGS))
 
-SRC=$(wildcard *.c)
+SRC=$(wildcard *.c) $(wildcard */*.c)
 OBJ=$(patsubst %.c, %.o, $(SRC))
 
 all: $(NAME)
